@@ -1,4 +1,4 @@
-# backblaze-b2-upload-any
+# @gideo-llc/backblaze-b2-upload-any
 
 An intelligent upload function to be used with the [backblaze-b2](https://www.npmjs.com/package/backblaze-b2) module. This function can upload buffers, streams, and local files, and automatically uses B2's [large file upload](https://www.backblaze.com/b2/docs/large_files.html) mechanism when appropriate.
 
@@ -14,7 +14,7 @@ An intelligent upload function to be used with the [backblaze-b2](https://www.np
 ```js
 const B2 = require('backblaze-b2');
 
-B2.prototype.uploadAny = require('backblaze-b2-upload-any');
+B2.prototype.uploadAny = require('@gideo-llc/backblaze-b2-upload-any');
 
 const b2 = new B2({
     applicationKeyId: '...',
