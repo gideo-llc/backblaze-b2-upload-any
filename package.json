@@ -1,0 +1,21 @@
+{
+  "name": "backblaze-b2-upload-any",
+  "version": "0.0.1",
+  "description": "An intelligent upload function to be used with the backblaze-b2 module",
+  "main": "index.js",
+  "author": {
+    "name": "Chris Howie",
+    "email": "chowie@gideo.video"
+  },
+  "license": "MIT",
+  "keywords": [
+    "backblaze",
+    "b2",
+    "storage"
+  ],
+  "dependencies": {
+    "@hapi/joi": "^17.1.0",
+    "memoizee": "^0.4.14",
+    "p-retry": "^4.2.0"
+  }
+}
