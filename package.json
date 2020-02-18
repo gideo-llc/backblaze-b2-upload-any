@@ -3,6 +3,8 @@
   "version": "0.0.1",
   "description": "An intelligent upload function to be used with the backblaze-b2 module",
   "main": "index.js",
+  "homepage": "https://github.com/gideo-llc/backblaze-b2-upload-any#readme",
+  "repository": "github:gideo-llc/backblaze-b2-upload-any",
   "author": {
     "name": "Chris Howie",
     "email": "chowie@gideo.video"
