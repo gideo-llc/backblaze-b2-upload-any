@@ -196,6 +196,7 @@ async function doLargeUpload(o, si) {
         await o.self.startLargeFile({
             bucketId: o.bucketId,
             fileName: o.fileName,
+            contentType: o.contentType,
         })
     ).data.fileId;
 
