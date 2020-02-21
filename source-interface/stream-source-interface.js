@@ -129,7 +129,7 @@ module.exports = async o => {
 
     return large ? streamLargeInterface(o, readBuffer) :
     {
-        size: async () => readBufferSize,
+        size: () => Promise.resolve(readBufferSize),
         makeStream: () => bufferStream(readBuffer),
     };
 };
