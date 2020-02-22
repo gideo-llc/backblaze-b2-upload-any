@@ -55,33 +55,32 @@ function fileLargeInterface(o) {
                 return s;
             }
 
-            return new Promise((resolve, reject) => {
+            const hash = new Promise((resolve, reject) => {
                 const source = openFile();
 
                 source.on('error', err => {
                     reject(err);
                     source.destroy();
-                });
-
-                const hasher = hashStream('sha1');
-
-                hasher.on('hash', hash => {
-                    resolve({
-                        // B2 pieces are 1-based
-                        number: p + 1,
-
-                        hash: hash.toString('hex'),
-
-                        obtain: openFile,
-
-                        destroy(o) {
-                            o.destroy();
-                        },
-                    });
-                });
-
-                source.pipe(hasher).resume();
+                })
+                .pipe(hashStream('sha1'))
+                .on('hash', hash => {
+                    resolve(hash.toString('hex'));
+                })
+                .resume();
             });
+
+            return {
+                // B2 pieces are 1-based
+                number: p + 1,
+
+                hash: await hash,
+
+                obtain: openFile,
+
+                destroy(o) {
+                    o.destroy();
+                },
+            };
         },
 
         // No-op for this producer type.

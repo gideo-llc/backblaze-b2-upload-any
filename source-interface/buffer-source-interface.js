@@ -7,7 +7,7 @@ function bufferLargeInterface(o) {
     const total = Math.ceil(o.data.length / o.partSize);
 
     return {
-        next() {
+        async next() {
             if (piece >= total) {
                 return Promise.resolve(undefined);
             }
@@ -22,7 +22,7 @@ function bufferLargeInterface(o) {
             return Promise.resolve({
                 number: piece,
 
-                hash: hashBuffer(data),
+                hash: await hashBuffer(data),
 
                 obtain: () => data,
 

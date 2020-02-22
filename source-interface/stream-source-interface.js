@@ -68,15 +68,20 @@ function streamLargeInterface(o, readBuffer) {
                     source.off('error', reject);
                     source.unpipe(reader);
 
-                    resolve(result && {
-                        number,
+                    resolve(
+                        result &&
 
-                        hash: hashBuffer(result),
+                        hashBuffer(result)
+                        .then(hash => ({
+                            number,
 
-                        obtain: () => result,
+                            hash,
 
-                        destroy() { },
-                    });
+                            obtain: () => result,
+
+                            destroy() { },
+                        }))
+                    );
                 }
 
                 source.on('error', reject);
