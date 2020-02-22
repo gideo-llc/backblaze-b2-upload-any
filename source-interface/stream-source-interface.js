@@ -37,6 +37,11 @@ function streamLargeInterface(o, readBuffer) {
         // calculated high watermark: the current part size, less the amount of
         // buffering the source stream will do by itself.
         //
+        // If there is backpressure even with this buffering, then the upload
+        // workers cannot keep up with the source stream.  Either the outbound
+        // network is the bottleneck, or the number of upload workers should be
+        // increased (free RAM permitting).
+        //
         // Enforce a minimum of 1MB.
         new stream.PassThrough({
             readableHighWaterMark: Math.max(1000000, o.partSize - o.data.readableHighWaterMark),
