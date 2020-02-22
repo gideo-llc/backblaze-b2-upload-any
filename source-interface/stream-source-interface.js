@@ -3,18 +3,45 @@ const stream = require('stream');
 const bufferStream = require('../streams/buffer');
 const concatStream = require('../streams/concat');
 const hashBuffer = require('../hash-buffer');
+const safePipe = require('../safe-pipe');
 const syncPromise = require('../sync-promise');
 
 function streamLargeInterface(o, readBuffer) {
     let piece = 1;
     let done = false;
 
-    // Combine the buffers we already read while probing the stream's size with
-    // the rest of the stream.
-    const source = concatStream([
-        bufferStream(readBuffer),
-        o.data
-    ]);
+    const source = safePipe(
+        // Combine the buffers we already read while probing the stream's size
+        // with the rest of the stream.
+        concatStream([
+            bufferStream(readBuffer),
+            o.data
+        ]),
+
+        // For optimal throughput, we want to buffer one extra part.
+        //
+        // If we don't do this, we observe a ping-ponging between N and N-1
+        // uploading workers (N=concurrency).  When all workers are uploading,
+        // the source stream ceases being read with only a minimal amount of
+        // data buffered.  As soon as a worker requests another piece, the
+        // source stream starts flowing again.  If the source stream is not
+        // extremely fast, the available worker will have to sit and do nothing
+        // while waiting for the next piece to be read.
+        //
+        // Effectively, while all workers are uploading, the source stream is
+        // sitting idle and we waste time we could use reading another piece.
+        // While not all workers are uploading, we are wasting upload
+        // throughput while we wait for the source stream.
+        //
+        // To solve this problem, we pipe through a pass-through stream with a
+        // calculated high watermark: the current part size, less the amount of
+        // buffering the source stream will do by itself.
+        //
+        // Enforce a minimum of 1MB.
+        new stream.PassThrough({
+            readableHighWaterMark: Math.max(1000000, o.partSize - o.data.readableHighWaterMark),
+        })
+    );
 
     return {
         // We use syncPromise because this function is not safe to invoke
