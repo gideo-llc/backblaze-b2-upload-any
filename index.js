@@ -307,4 +307,27 @@ async function upload(options) {
     return si.next ? doLargeUpload(o, si) : doStandardUpload(o, si);
 }
 
+upload.install = function install(B2) {
+    if (!B2.prototype.uploadAny) {
+        const _authorize = B2.prototype.authorize;
+
+        B2.prototype.authorize = function authorize() {
+            return _authorize.apply(this, arguments)
+            .then(r => {
+                getPriv(this).partSize = r && r.data && r.data.recommendedPartSize || undefined;
+                return r;
+            });
+        };
+
+        B2.prototype.uploadAny = function (options) {
+            return upload.call(this, {
+                partSize: getPriv(this).partSize,
+                ...options
+            });
+        };
+    }
+
+    return B2;
+};
+
 module.exports = upload;

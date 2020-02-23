@@ -11,6 +11,8 @@ An intelligent upload function to be used with the [backblaze-b2](https://www.np
 
 ## Quick start
 
+### Unintrusive
+
 ```js
 const B2 = require('backblaze-b2');
 
@@ -27,6 +29,36 @@ b2.authorize()
         bucketId: '...',
         fileName: 'foo',
         partSize: r.data.recommendedPartSize,
+        data: /* buffer, stream, or file path */,
+    })
+)
+.then(() => { console.log('Upload complete'); }, console.log);
+```
+
+### Intrusive
+
+An `install` function is exported.  When called with the B2 constructor function, it will install two wrappers on its prototype:
+
+* `authorize` is wrapped.  The recommended part size is extracted from the response and associated with the B2 client object.
+* `uploadAny` is wrapped.  The default value of the options object's `partSize` attribute is set to the recommended part size that the `authorize` wrapper observed.
+
+This simplifies correct usage of the `uploadAny` function as the recommended part size doesn't have to be passed around your application.
+
+```js
+const B2 = require('backblaze-b2');
+
+require('@gideo-llc/backblaze-b2-upload-any').install(B2);
+
+const b2 = new B2({
+    applicationKeyId: '...',
+    applicationKey: '...',
+});
+
+b2.authorize()
+.then(() =>
+    b2.uploadAny({
+        bucketId: '...',
+        fileName: 'foo',
         data: /* buffer, stream, or file path */,
     })
 )
