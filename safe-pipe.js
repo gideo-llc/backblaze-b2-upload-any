@@ -2,6 +2,6 @@
 // through the rest of the streams.  Returns the final stream.
 module.exports = (...streams) =>
     streams.reduce((left, right) =>
-        left.on('error', err => { right.emit('error', err); })
+        left.on('error', right.destroy.bind(right))
         .pipe(right)
     );
