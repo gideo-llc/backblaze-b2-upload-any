@@ -4,6 +4,7 @@ const pRetry = require('p-retry');
 const { v4: uuidv4 } = require('uuid');
 
 const hashStream = require('./streams/hash');
+const httpsRequest = require('./https-client');
 const pUtils = require('./promise-utils');
 const safePipe = require('./safe-pipe');
 const sourceInterface = require('./source-interface');
@@ -188,15 +189,26 @@ async function doStandardUpload(o, si) {
         const data = si.makeStream();
 
         try {
-            return await o.self.uploadFile({
-                uploadUrl: token.uploadUrl,
-                uploadAuthToken: token.authorizationToken,
-                fileName: o.fileName,
-                mime: o.contentType,
-                hash,
-                contentLength: size,
-                data,
-            });
+            return await httpsRequest(
+                token.uploadUrl,
+                {
+                    method: 'POST',
+                    headers: {
+                        authorization: token.authorizationToken,
+                        'x-bz-file-name': o.fileName,
+                        'content-type': o.contentType,
+                        'content-length': size,
+                        'x-bz-content-sha1': hash,
+                    },
+                    timeout: 15 * 1000,
+                },
+                data
+            );
+
+            trace(o.logDetail, 'Standard upload completed');
+        } catch (err) {
+            err.logDetail = o.logDetail;
+            throw err;
         } finally {
             data.destroy();
         }
@@ -231,25 +243,48 @@ async function doLargeUpload(o, si) {
                 reject(err);
             }
 
-            async function doPart(part) {
-                const data = await part.obtain();
+            function doPart(part) {
+                const detail = { ...o.logDetail, partNumber: part.number };
 
-                try {
-                    await borrow(token =>
-                        o.self.uploadPart({
-                            partNumber: part.number,
-                            uploadUrl: token.uploadUrl,
-                            uploadAuthToken: token.authorizationToken,
-                            hash: part.hash,
-                            data,
-                        })
-                    );
+                trace(detail, 'Beginning part');
+
+                return borrow(async token => {
+                    try {
+                        trace(detail, 'Obtaining part data');
+
+                        const data = await part.obtain();
+
+                        try {
+                            trace(detail, 'Attempting part upload');
+
+                            await httpsRequest(
+                                token.uploadUrl,
+                                {
+                                    method: 'POST',
+                                    headers: {
+                                        authorization: token.authorizationToken,
+                                        'x-bz-part-number': part.number,
+                                        'content-length': data.byteLength || data.length,
+                                        'x-bz-content-sha1': part.hash,
+                                    },
+                                    timeout: 15 * 1000,
+                                },
+                                data
+                            );
+                        } catch (err) {
+                            part.destroy(data);
+                            throw err;
+                        }
+                    } catch (err) {
+                        err.logDetail = detail;
+                        throw err;
+                    }
+
+                    trace(detail, 'Finished part');
 
                     return part.hash;
-                } catch (err) {
-                    part.destroy(data);
-                    throw err;
-                }
+                })
+                .catch(fail);
             }
 
             // I'm sure there's a better way to do this...
