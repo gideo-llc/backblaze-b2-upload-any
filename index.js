@@ -1,11 +1,13 @@
 const Joi = require('@hapi/joi');
 const memoize = require('memoizee');
 const pRetry = require('p-retry');
+const { v4: uuidv4 } = require('uuid');
 
 const hashStream = require('./streams/hash');
 const pUtils = require('./promise-utils');
 const safePipe = require('./safe-pipe');
 const sourceInterface = require('./source-interface');
+const { trace } = require('./log');
 
 // We store our private data on the client object itself, using a symbol to
 // ensure no future attribute key conflicts.
@@ -41,7 +43,11 @@ function getPriv(o) {
 
                         return result;
                     } catch (err) {
+                        const detail = { err, ...err.logDetail };
+
                         if (token && (!err.config || err.config.url !== token.uploadUrl)) {
+                            trace(detail, 'Error caught by a borrow function; unrelated to B2');
+
                             // The error doesn't seem related to B2 requests.
                             // Return the token and forward the error.
                             queue.push(token);
@@ -51,10 +57,12 @@ function getPriv(o) {
                         const r = err.response || {};
                         const retryAfter = parseInt(r.headers && r.headers['retry-after']);
 
-                        let retry;
-                        let discard;
+                        let retry = false;
+                        let discard = false;
 
                         if (r.status === 401) {
+                            trace(detail, 'Error caught by a borrow function; reauthenticating');
+
                             // Reauthenticate and immediately recurse; this
                             // shouldn't "count" as a retry since it is an
                             // obvious error with a known fix.
@@ -80,6 +88,8 @@ function getPriv(o) {
                             // Retry in these scenarios but keep the token.
                             retry = true;
                         }
+
+                        trace({ ...detail, retry, discard }, 'Error caught by a borrow function');
 
                         if (!discard) {
                             queue.push(token);
@@ -159,6 +169,8 @@ const uploadOptionsSchema = Joi.object().required().keys({
 });
 
 async function doStandardUpload(o, si) {
+    trace(o.logDetail, 'Using standard upload');
+
     // TODO: If input is a file, hashes it first. Should hash on-the-fly and
     // append the hash.
     const [ hash, size ] = await Promise.all([
@@ -192,6 +204,8 @@ async function doStandardUpload(o, si) {
 }
 
 async function doLargeUpload(o, si) {
+    trace(o.logDetail, 'Using large upload');
+
     const fileId = (
         await o.self.startLargeFile({
             bucketId: o.bucketId,
@@ -199,6 +213,8 @@ async function doLargeUpload(o, si) {
             contentType: o.contentType,
         })
     ).data.fileId;
+
+    o.logDetail.fileId = fileId;
 
     const borrow = getPriv(o.self).createLargeFileBorrowFn(fileId);
 
@@ -266,6 +282,8 @@ async function doLargeUpload(o, si) {
                             // is available.
                             startWorker();
                         } else {
+                            trace(o.logDetail, 'No more parts');
+
                             // There are no more parts. Setting available to
                             // NaN makes "available += 1" a no-op and
                             // "available > 0" always false, guaranteeing no
@@ -286,12 +304,18 @@ async function doLargeUpload(o, si) {
             startWorker();
         });
 
+        trace(o.logDetail, 'Finishing large file');
+
         // "return await" so we can catch any errors.
         return await o.self.finishLargeFile({
             fileId,
             partSha1Array: partHashes,
         });
+
+        trace(o.logDetail, 'Large upload complete');
     } catch (err) {
+        trace({ ...o.logDetail, err }, 'Large upload failed; canceling large file');
+
         await o.self.cancelLargeFile({ fileId });
         throw err;
     }
@@ -301,6 +325,13 @@ async function upload(options) {
     const o = Joi.attempt(options, uploadOptionsSchema);
 
     o.self = this;
+    o.logDetail = {
+        correlationId: uuidv4(),
+        fileName: o.fileName,
+        bucketId: o.bucketId,
+    };
+
+    trace(o.logDetail, 'Beginning upload');
 
     const si = await sourceInterface(o);
 
