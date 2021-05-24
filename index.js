@@ -310,7 +310,13 @@ async function doLargeUpload(o, si) {
                                     startWorker();
                                     return v;
                                 })
-                                .catch(fail)
+                                .catch(err => {
+                                    // Fast-fail out of the whole process if
+                                    // possible.  Propagate the error for
+                                    // Promise.all() later.
+                                    fail(err);
+                                    throw err;
+                                })
                             );
 
                             // Since we got a part, start another worker if one
@@ -326,8 +332,13 @@ async function doLargeUpload(o, si) {
                             available = NaN;
 
                             // Resolve our promise as the array of hashes we
-                            // need to complete the upload.
-                            resolve(Promise.all(hashes));
+                            // need to complete the upload.  Note that we don't
+                            // call resolve() right now because it's still
+                            // possible for fail() to be called.  Once
+                            // resolve() is called, reject() is a no-op which
+                            // could cause errors to not only be ignored, but
+                            // prevent the outer promise from being settled.
+                            Promise.all(hashes).then(resolve, fail);
                         }
                     } catch (err) {
                         fail(err);
