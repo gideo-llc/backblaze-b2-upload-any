@@ -16,10 +16,10 @@
     "storage"
   ],
   "dependencies": {
-    "@hapi/joi": "^17.1.0",
-    "memoizee": "^0.4.14",
-    "p-retry": "^4.2.0",
-    "uuid": "^7.0.1"
+    "@hapi/joi": "^17.1.1",
+    "memoizee": "^0.4.15",
+    "p-retry": "^4.5.0",
+    "uuid": "^8.3.2"
   },
   "optionalDependencies": {
     "@ronomon/crypto-async": "^5.0.1"
