@@ -48,6 +48,14 @@ function streamLargeInterface(o, readBuffer) {
         })
     );
 
+    let capturedError;
+
+    function captureError(err) {
+        capturedError = err;
+    }
+
+    source.on('error', captureError);
+
     return {
         // We use syncPromise because this function is not safe to invoke
         // concurrently; otherwise the contents of the stream could be
@@ -55,7 +63,12 @@ function streamLargeInterface(o, readBuffer) {
         // anyway, but we guard against it to be safe.
         next: syncPromise(() =>
             new Promise((resolve, reject) => {
-                if (done) {
+                if (capturedError) {
+                    reject(capturedError);
+                    return;
+                }
+
+                if (done || source.readableEnded) {
                     resolve(undefined);
                     return;
                 }
@@ -123,6 +136,7 @@ function streamLargeInterface(o, readBuffer) {
 
         destroy() {
             o.data.destroy();
+            source.off('error', captureError);
         },
     };
 }
