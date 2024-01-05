@@ -1,4 +1,4 @@
-const Joi = require('@hapi/joi');
+const Joi = require('joi');
 const memoize = require('memoizee');
 const pRetry = require('p-retry');
 const { v4: uuidv4 } = require('uuid');
