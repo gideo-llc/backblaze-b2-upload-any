@@ -236,6 +236,11 @@ async function doLargeUpload(o, si) {
             // upload tasks we can start.
             let available = o.concurrency;
 
+            // How many parts are currently in-flight.  Keeping track of this
+            // prevents a race condition where we finish the file upload before
+            // all parts are uploaded.
+            let inflight = 0;
+
             const hashes = [];
 
             function fail(err) {
@@ -292,17 +297,20 @@ async function doLargeUpload(o, si) {
                 if (available > 0) {
                     available -= 1;
 
-                    // Ask for the next part. Note that we don't start another
-                    // worker until we actually have a part; if there are no
-                    // more parts, this simplifies the termination logic.
+                    // Ask for the next part.
                     try {
+                        inflight += 1;
                         const part = await si.next();
+
+                        // If an error happens we reject the whole promise
+                        // anyway, so it's not an issue that we only decrement
+                        // this on success.
+                        inflight -= 1;
 
                         if (part) {
                             // doPart() returns a promise for the SHA1 hash of
                             // the part. Add it to the hashes array.
-                            hashes.push(
-                                doPart(part)
+                            hashes[part.number - 1] = doPart(part)
                                 .then(v => {
                                     // On completion, return a token to the
                                     // bucket and try to start another worker.
@@ -316,13 +324,12 @@ async function doLargeUpload(o, si) {
                                     // Promise.all() later.
                                     fail(err);
                                     throw err;
-                                })
-                            );
+                                });
 
                             // Since we got a part, start another worker if one
                             // is available.
                             startWorker();
-                        } else {
+                        } else if (inflight === 0) {
                             trace(o.logDetail, 'No more parts');
 
                             // There are no more parts. Setting available to
@@ -347,7 +354,9 @@ async function doLargeUpload(o, si) {
             }
 
             // Kick off the process.
-            startWorker();
+            while (available > 0) {
+                startWorker();
+            }
         });
 
         trace(o.logDetail, 'Finishing large file');
